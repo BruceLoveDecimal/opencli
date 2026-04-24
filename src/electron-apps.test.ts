@@ -15,6 +15,14 @@ describe('electron-apps registry', () => {
     expect(app!.port).toBe(9222);
   });
 
+  it('returns builtin app entry for neteasemusic', () => {
+    const app = getElectronApp('neteasemusic');
+    expect(app).toBeDefined();
+    expect(app!.port).toBe(9238);
+    expect(app!.processName).toBe('NeteaseMusic');
+    expect(app!.bundleId).toBe('com.netease.163music');
+  });
+
   it('returns undefined for non-Electron sites', () => {
     expect(getElectronApp('bilibili')).toBeUndefined();
     expect(getElectronApp('hackernews')).toBeUndefined();
@@ -24,6 +32,7 @@ describe('electron-apps registry', () => {
     expect(isElectronApp('cursor')).toBe(true);
     expect(isElectronApp('codex')).toBe(true);
     expect(isElectronApp('chatwise')).toBe(true);
+    expect(isElectronApp('neteasemusic')).toBe(true);
   });
 
   it('isElectronApp returns false for non-Electron sites', () => {

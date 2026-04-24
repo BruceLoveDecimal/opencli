@@ -114,3 +114,4 @@ Run `opencli list` for the live registry.
 | **[Notion](./desktop/notion.md)**           | Search, read, write pages     | `status` `search` `read` `new` `write` `sidebar` `favorites` `export`                                       |
 | **[Discord](./desktop/discord.md)**         | Desktop messages & channels   | `status` `send` `read` `channels` `servers` `search` `members`                                              |
 | **[Doubao App](./desktop/doubao-app.md)**   | Doubao AI desktop app via CDP | `status` `new` `send` `read` `ask` `screenshot` `dump`                                                      |
+| **[NetEase Cloud Music](./desktop/neteasemusic.md)** | Desktop music playback & search | `status` `dump` `screenshot` `now-playing` `play-pause` `next` `prev` `search` `queue`                |
