@@ -11204,6 +11204,86 @@
   },
   {
     "site": "neteasemusic",
+    "name": "favorites",
+    "description": "List visible items from the \"Favorites\" page in NetEase Cloud Music",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "str",
+        "default": "20",
+        "required": false,
+        "help": "Max favorite items to read (default: 20)"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Type",
+      "Title",
+      "Subtitle",
+      "Meta"
+    ],
+    "type": "ts",
+    "modulePath": "neteasemusic/favorites.js",
+    "sourceFile": "neteasemusic/favorites.js"
+  },
+  {
+    "site": "neteasemusic",
+    "name": "latest-music",
+    "description": "List visible cards from the \"Latest Music\" module on the NetEase Cloud Music home page",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "str",
+        "default": "20",
+        "required": false,
+        "help": "Max latest songs to read (default: 20)"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Title",
+      "Artist",
+      "Meta"
+    ],
+    "type": "ts",
+    "modulePath": "neteasemusic/latest-music.js",
+    "sourceFile": "neteasemusic/latest-music.js"
+  },
+  {
+    "site": "neteasemusic",
+    "name": "likes",
+    "description": "List songs from the \"Liked Songs\" page in NetEase Cloud Music",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "str",
+        "default": "20",
+        "required": false,
+        "help": "Max liked songs to read (default: 20)"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Title",
+      "Artist",
+      "Album",
+      "Duration"
+    ],
+    "type": "ts",
+    "modulePath": "neteasemusic/likes.js",
+    "sourceFile": "neteasemusic/likes.js"
+  },
+  {
+    "site": "neteasemusic",
     "name": "next",
     "description": "Skip to the next track in NetEase Cloud Music",
     "domain": "localhost",
@@ -11238,6 +11318,33 @@
     "type": "ts",
     "modulePath": "neteasemusic/now-playing.js",
     "sourceFile": "neteasemusic/now-playing.js"
+  },
+  {
+    "site": "neteasemusic",
+    "name": "official-playlists",
+    "description": "List visible cards from the \"Official Playlists\" module on the NetEase Cloud Music home page",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "str",
+        "default": "20",
+        "required": false,
+        "help": "Max official playlists to read (default: 20)"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Title",
+      "Subtitle",
+      "PlayCount",
+      "PlaylistId"
+    ],
+    "type": "ts",
+    "modulePath": "neteasemusic/official-playlists.js",
+    "sourceFile": "neteasemusic/official-playlists.js"
   },
   {
     "site": "neteasemusic",
@@ -11299,6 +11406,33 @@
     "type": "ts",
     "modulePath": "neteasemusic/queue.js",
     "sourceFile": "neteasemusic/queue.js"
+  },
+  {
+    "site": "neteasemusic",
+    "name": "recent",
+    "description": "List songs from the \"Recently Played\" page in NetEase Cloud Music",
+    "domain": "localhost",
+    "strategy": "ui",
+    "browser": true,
+    "args": [
+      {
+        "name": "limit",
+        "type": "str",
+        "default": "20",
+        "required": false,
+        "help": "Max recent songs to read (default: 20)"
+      }
+    ],
+    "columns": [
+      "Index",
+      "Title",
+      "Artist",
+      "Album",
+      "PlayedAt"
+    ],
+    "type": "ts",
+    "modulePath": "neteasemusic/recent.js",
+    "sourceFile": "neteasemusic/recent.js"
   },
   {
     "site": "neteasemusic",

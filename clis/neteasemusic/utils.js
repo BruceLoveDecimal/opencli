@@ -22,6 +22,29 @@ const PLAYER_SELECTORS = {
   queuePanel: '#page_pc_playlist',
 };
 
+const LIBRARY_NAV_ITEMS = {
+  likes: {
+    selector: '#left_nav_myFavoriteMusic',
+    label: '我喜欢的音乐',
+    pageSelector: '#page_mine_like_music',
+  },
+  recent: {
+    selector: '#left_nav_historyPlaylist',
+    label: '最近播放',
+    pageSelector: '#page_pc_recently_play',
+  },
+  favorites: {
+    selector: '#left_nav_myFavorite, #left_nav_myCollection, #left_nav_favorite',
+    label: '我的收藏',
+    pageSelector: '#page_my_favorite, #page_pc_my_favorite, #page_my_collection, #page_pc_my_collection',
+  },
+};
+
+const HOME_NAV_CONFIG = {
+  selector: '#left_nav_choice',
+  label: '精选',
+};
+
 const SEARCH_GROUPS = {
   song: 'songs',
   playlist: 'playlists',
@@ -36,6 +59,15 @@ const SEARCH_GROUPS = {
 
 function js(value) {
   return JSON.stringify(value);
+}
+
+function noRows(columns, title = 'No rows found') {
+  const row = { Index: 0 };
+  for (const column of columns) {
+    if (column === 'Index') continue;
+    row[column] = column === 'Title' ? title : '';
+  }
+  return [row];
 }
 
 export function resolveSearchMode(kwargs) {
@@ -680,4 +712,391 @@ export async function waitForPlayerUpdate(page, kind, previous) {
   }
 
   return latest;
+}
+
+export async function closeTransientPanels(page) {
+  await page.evaluate(`
+    (function() {
+      const mask = document.querySelector('.cmd-sidesheet-mask');
+      if (mask instanceof HTMLElement) mask.click();
+    })()
+  `);
+  await page.wait(0.2);
+}
+
+export async function navigateHome(page) {
+  await closeTransientPanels(page);
+
+  const clicked = await page.evaluate(`
+    (function(config) {
+      let node = document.querySelector(config.selector);
+      if (!(node instanceof HTMLElement)) {
+        node = Array.from(document.querySelectorAll('.ItemContainer_ijv59hq, [id^="left_nav_"]')).find((item) => {
+          if (!(item instanceof HTMLElement)) return false;
+          const text = (item.textContent || '').replace(/\\s+/g, ' ').trim();
+          return text === config.label;
+        }) || null;
+      }
+      if (!(node instanceof HTMLElement)) return false;
+      node.click();
+      return true;
+    })(${js(HOME_NAV_CONFIG)})
+  `);
+
+  if (!clicked) {
+    throw new SelectorError('neteasemusic home nav', 'Could not find the NetEase Cloud Music home sidebar entry.');
+  }
+
+  for (let attempt = 0; attempt < 15; attempt += 1) {
+    const ready = await page.evaluate(`
+      (function() {
+        const selectedNav = document.querySelector(${js(HOME_NAV_CONFIG.selector)});
+        const selected = selectedNav instanceof HTMLElement && /selected/.test(selectedNav.className || '');
+        const latest = document.querySelector('[data-log*="mod_pc_music_rcmd_latest_list"]');
+        return selected && latest instanceof HTMLElement;
+      })()
+    `);
+    if (ready) return;
+    await page.wait(0.2);
+  }
+}
+
+export async function navigateLibrarySection(page, kind) {
+  const config = LIBRARY_NAV_ITEMS[kind];
+  if (!config) throw new SelectorError(`neteasemusic library section: ${kind}`, 'Unknown NetEase Cloud Music library section.');
+
+  await closeTransientPanels(page);
+
+  const clicked = await page.evaluate(`
+    (function(config) {
+      let node = document.querySelector(config.selector);
+      if (!(node instanceof HTMLElement)) {
+        const items = Array.from(document.querySelectorAll('.ItemContainer_ijv59hq, [id^="left_nav_"], .title'));
+        node = items.find((item) => {
+          if (!(item instanceof HTMLElement)) return false;
+          const text = (item.textContent || '').replace(/\\s+/g, ' ').trim();
+          return text === config.label;
+        }) || null;
+      }
+
+      const target = node instanceof HTMLElement ? (node.closest('.ItemContainer_ijv59hq') || node) : null;
+      if (!(target instanceof HTMLElement)) return false;
+      target.click();
+      return true;
+    })(${js(config)})
+  `);
+
+  if (!clicked) {
+    throw new SelectorError(`neteasemusic library nav: ${config.label}`, `Could not find the sidebar entry for ${config.label}.`);
+  }
+
+  for (let attempt = 0; attempt < 15; attempt += 1) {
+    const ready = await page.evaluate(`
+      (function(config) {
+        const selectedNav = document.querySelector(config.selector);
+        const navSelected = selectedNav instanceof HTMLElement && /selected/.test(selectedNav.className || '');
+        const pageNode = config.pageSelector ? document.querySelector(config.pageSelector) : null;
+        const pageReady = pageNode instanceof HTMLElement;
+        if (pageReady) return true;
+
+        const exactLabel = Array.from(document.querySelectorAll('body *')).some((node) => {
+          if (!(node instanceof HTMLElement)) return false;
+          const text = (node.textContent || '').replace(/\\s+/g, ' ').trim();
+          return text === config.label;
+        });
+        return navSelected && exactLabel;
+      })(${js(config)})
+    `);
+    if (ready) return;
+    await page.wait(0.2);
+  }
+}
+
+export async function scrapeLikedSongs(page, limit) {
+  return page.evaluate(`
+    (function(limit) {
+      function clean(text) {
+        return (text || '').replace(/\\s+/g, ' ').trim();
+      }
+
+      function textFrom(selectors, scope) {
+        for (const selector of selectors) {
+          const node = scope.querySelector(selector);
+          if (!(node instanceof HTMLElement)) continue;
+          const title = clean(node.getAttribute('title') || '');
+          if (title) return title;
+          const text = clean(node.textContent || '');
+          if (text) return text;
+        }
+        return '';
+      }
+
+      const scope = document.querySelector('#page_mine_like_music');
+      if (!(scope instanceof HTMLElement)) return [];
+
+      const rows = [];
+      const items = Array.from(scope.querySelectorAll('[data-log*="cell_pc_songlist_song"]'));
+      for (const item of items) {
+        if (!(item instanceof HTMLElement)) continue;
+        const title = textFrom([
+          '.td-title h4.title[title]',
+          '.td-title .title[title]',
+          '.td-title h4.title',
+          '.td-title .title',
+        ], item);
+        if (!title) continue;
+        const artist = textFrom([
+          '.td-title .artists[title]',
+          '.td-title .artists',
+          '.td-title .artist',
+        ], item).replace(/\\s*\\/\\s*/g, ' / ');
+        const album = textFrom([
+          '.td-album [title]',
+          '.td-album .text',
+          '.td-album',
+        ], item);
+        const duration = clean(item.innerText || item.textContent || '').match(/(\\d{1,2}:\\d{2})(?!.*\\d{1,2}:\\d{2})/)?.[1] || '';
+        rows.push({
+          Index: rows.length + 1,
+          Title: title,
+          Artist: artist,
+          Album: album,
+          Duration: duration,
+        });
+        if (rows.length >= limit) break;
+      }
+      return rows;
+    })(${Number(limit) || 20})
+  `);
+}
+
+export async function scrapeRecentSongs(page, limit) {
+  return page.evaluate(`
+    (function(limit) {
+      function clean(text) {
+        return (text || '').replace(/\\s+/g, ' ').trim();
+      }
+
+      function textFrom(selectors, scope) {
+        for (const selector of selectors) {
+          const node = scope.querySelector(selector);
+          if (!(node instanceof HTMLElement)) continue;
+          const title = clean(node.getAttribute('title') || '');
+          if (title) return title;
+          const text = clean(node.textContent || '');
+          if (text) return text;
+        }
+        return '';
+      }
+
+      const scope = document.querySelector('#page_pc_recently_play');
+      if (!(scope instanceof HTMLElement)) return [];
+
+      const rows = [];
+      const items = Array.from(scope.querySelectorAll('[data-log*="cell_pc_songlist_song"]')).filter((item) => {
+        if (!(item instanceof HTMLElement)) return false;
+        return (item.getAttribute('data-log') || '').includes('"scene":"history"');
+      });
+      for (const item of items) {
+        const title = textFrom([
+          '.td-title h4.title[title]',
+          '.td-title .title[title]',
+          '.td-title h4.title',
+          '.td-title .title',
+        ], item);
+        if (!title) continue;
+        const artist = textFrom([
+          '.td-title .artists[title]',
+          '.td-title .artists',
+          '.td-title .artist',
+        ], item).replace(/\\s*\\/\\s*/g, ' / ');
+        const album = textFrom([
+          '.td-album [title]',
+          '.td-album .text',
+          '.td-album',
+        ], item);
+        const playedAt = textFrom([
+          '.td-playTime [title]',
+          '.td-playTime .text',
+          '.td-playTime',
+        ], item);
+        rows.push({
+          Index: rows.length + 1,
+          Title: title,
+          Artist: artist,
+          Album: album,
+          PlayedAt: playedAt,
+        });
+        if (rows.length >= limit) break;
+      }
+      return rows;
+    })(${Number(limit) || 20})
+  `);
+}
+
+export async function scrapeFavoriteItems(page, limit) {
+  return page.evaluate(`
+    (function(limit) {
+      function clean(text) {
+        return (text || '').replace(/\\s+/g, ' ').trim();
+      }
+
+      function linesOf(node) {
+        return clean(node.innerText || node.textContent || '')
+          .split(/\\n+/)
+          .map((line) => clean(line))
+          .filter(Boolean);
+      }
+
+      function firstText(node, selectors) {
+        for (const selector of selectors) {
+          const found = node.querySelector(selector);
+          if (!(found instanceof HTMLElement)) continue;
+          const title = clean(found.getAttribute('title') || '');
+          if (title) return title;
+          const text = clean(found.textContent || '');
+          if (text) return text;
+        }
+        return '';
+      }
+
+      function visibleRows(selector, scope) {
+        return Array.from(scope.querySelectorAll(selector)).filter((node) => {
+          if (!(node instanceof HTMLElement)) return false;
+          const rect = node.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0;
+        });
+      }
+
+      const pageScope = Array.from(document.querySelectorAll('body > * , #root *')).find((node) => {
+        if (!(node instanceof HTMLElement)) return false;
+        const text = clean(node.textContent || '');
+        return text.includes('我的收藏') && !text.includes('播放列表');
+      }) || document.body;
+
+      const rows = [];
+
+      for (const node of visibleRows('[data-log*="cell_pc_songlist_song"]', pageScope)) {
+        const title = firstText(node, ['.td-title .title[title]', '.td-title .title', '.title[title]', '.title']);
+        if (!title) continue;
+        const artist = firstText(node, ['.td-title .artists[title]', '.td-title .artists', '.artists']);
+        const album = firstText(node, ['.td-album [title]', '.td-album .text', '.td-album']);
+        rows.push({ Index: rows.length + 1, Type: 'song', Title: title, Subtitle: artist.replace(/\\s*\\/\\s*/g, ' / '), Meta: album });
+        if (rows.length >= limit) return rows;
+      }
+
+      for (const node of visibleRows('[data-log*="cell_pc_common_playlist"]', pageScope)) {
+        const lines = linesOf(node);
+        const title = firstText(node, ['.td-title .title[title]', '.td-title .title', '.title[title]', '.title']) || lines[0] || '';
+        if (!title) continue;
+        const creator = lines.find((line) => line !== title) || '';
+        rows.push({ Index: rows.length + 1, Type: 'playlist', Title: title, Subtitle: creator, Meta: '' });
+        if (rows.length >= limit) return rows;
+      }
+
+      for (const node of visibleRows('[data-log*="cell_pc_albumlist_album"]', pageScope)) {
+        const lines = linesOf(node);
+        const title = firstText(node, ['.td-title .title[title]', '.td-title .title', '.title[title]', '.title']) || lines[0] || '';
+        if (!title) continue;
+        const artist = lines.find((line) => line !== title) || '';
+        rows.push({ Index: rows.length + 1, Type: 'album', Title: title, Subtitle: artist, Meta: '' });
+        if (rows.length >= limit) return rows;
+      }
+
+      for (const node of visibleRows('[data-log*="cell_pc_common_artist"]', pageScope)) {
+        const lines = linesOf(node);
+        const title = firstText(node, ['.name', '.title', '[class*="name"]', '[class*="title"]']) || lines[0] || '';
+        if (!title) continue;
+        const meta = lines.find((line) => line !== title) || '';
+        rows.push({ Index: rows.length + 1, Type: 'artist', Title: title, Subtitle: '', Meta: meta });
+        if (rows.length >= limit) return rows;
+      }
+
+      return rows;
+    })(${Number(limit) || 20})
+  `);
+}
+
+export { noRows };
+
+export async function scrapeOfficialPlaylists(page, limit) {
+  return page.evaluate(`
+    (function(limit) {
+      function clean(text) {
+        return (text || '').replace(/\\s+/g, ' ').trim();
+      }
+
+      function parseDataLog(value) {
+        if (!value) return null;
+        try {
+          return JSON.parse(value);
+        } catch {
+          return null;
+        }
+      }
+
+      const rows = [];
+      const cards = Array.from(document.querySelectorAll('[data-log*="cell_pc_common_songlist"]'));
+      for (const card of cards) {
+        if (!(card instanceof HTMLElement)) continue;
+        const log = parseDataLog(card.getAttribute('data-log') || '');
+        const playCountNode = card.querySelector('.play-count, [class*="play-count"], .PlayCountContainer_p1w7zy9t');
+        const playCount = clean(playCountNode instanceof HTMLElement ? playCountNode.textContent || '' : '') || '';
+        const titleNode = card.querySelector('.name span, .name, .cmd-typography.name, [class*="name"] span');
+        const title = clean(titleNode instanceof HTMLElement ? titleNode.textContent || '' : '');
+        const previewTracks = Array.from(card.querySelectorAll('.songs .track-name'))
+          .map((node) => clean(node.textContent || ''))
+          .filter(Boolean)
+          .slice(0, 3)
+          .join(' / ');
+        if (!title) continue;
+        rows.push({
+          Index: rows.length + 1,
+          Title: title,
+          Subtitle: previewTracks,
+          PlayCount: playCount,
+          PlaylistId: String(log?.params?.s_cid || ''),
+        });
+        if (rows.length >= limit) break;
+      }
+      return rows;
+    })(${Number(limit) || 20})
+  `);
+}
+
+export async function scrapeLatestMusic(page, limit) {
+  return page.evaluate(`
+    (function(limit) {
+      function clean(text) {
+        return (text || '').replace(/\\s+/g, ' ').trim();
+      }
+
+      const scope = document.querySelector('[data-log*="mod_pc_music_rcmd_latest_list"]');
+      if (!(scope instanceof HTMLElement)) return [];
+
+      const rows = [];
+      const cards = Array.from(scope.querySelectorAll('.trackListItemCls_t1m01mil'));
+      for (const card of cards) {
+        if (!(card instanceof HTMLElement)) continue;
+        const titleNode = card.querySelector('.cmd-metacard-content .header, .cmd-metacard-content [class*="header"]');
+        const artistNode = card.querySelector('.cmd-metacard-content .artist, .cmd-metacard-content [class*="artist"]');
+        const tagNodes = Array.from(card.querySelectorAll('.cmd-metacard-content .middle .cmd-tag-content, .cmd-metacard-content .middle [class*="tag"] .cmd-tag-content'))
+          .map((node) => clean(node.textContent || ''))
+          .filter(Boolean);
+        const uniqueTags = Array.from(new Set(tagNodes));
+        const title = clean(titleNode instanceof HTMLElement ? titleNode.textContent || '' : '');
+        const artist = clean(artistNode instanceof HTMLElement ? artistNode.textContent || '' : '').replace(/\\s*\\/\\s*/g, ' / ');
+        const meta = uniqueTags.join(' / ');
+        if (!title) continue;
+        rows.push({
+          Index: rows.length + 1,
+          Title: title,
+          Artist: artist,
+          Meta: meta,
+        });
+        if (rows.length >= limit) break;
+      }
+      return rows;
+    })(${Number(limit) || 20})
+  `);
 }

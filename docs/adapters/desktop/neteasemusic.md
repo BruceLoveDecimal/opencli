@@ -38,9 +38,15 @@ export OPENCLI_CDP_ENDPOINT="http://127.0.0.1:9238"
 | `opencli neteasemusic search "周杰伦" --mv` | Restrict search to MVs |
 | `opencli neteasemusic search "周杰伦" --user` | Restrict search to users |
 | `opencli neteasemusic queue` | Read the currently visible play queue |
+| `opencli neteasemusic likes` | Read visible songs from "我喜欢的音乐" |
+| `opencli neteasemusic recent` | Read visible songs from "最近播放" |
+| `opencli neteasemusic favorites` | Read visible items from "我的收藏" |
+| `opencli neteasemusic official-playlists` | Read visible cards from the homepage "官方歌单" module |
+| `opencli neteasemusic latest-music` | Read visible cards from the homepage "最新音乐" module |
 
 ## Notes
 
 - V1 targets the macOS desktop app first.
 - Search defaults to the comprehensive result view.
 - Queue and playback selectors are based on the current CEF desktop UI and may need adjustment if NetEase changes the player shell.
+- `favorites` depends on the sidebar entry being present in the current account / UI state.
